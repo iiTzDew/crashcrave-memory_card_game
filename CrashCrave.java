@@ -158,7 +158,51 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
 
     public CrashCrave() {
         setUpCards();
-
+        initializeUI();
+        
+        // Default behavior - show mode selection dialog
+        showModeSelection();
+        
+        setupGameBoard();
+        pack();
+        setVisible(true);
+        
+        // Start game timer
+        hideCardTimer = new Timer(1500, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                hideCards();
+            }
+        });        
+        hideCardTimer.setRepeats(false);
+        hideCardTimer.start();
+    }
+    
+    // Constructor for HomeScreen integration
+    public CrashCrave(boolean showDialog) {
+        setUpCards();
+        initializeUI();
+        
+        if (showDialog) {
+            showModeSelection();
+        }
+        
+        setupGameBoard();
+        pack();
+        setVisible(true);
+        
+        // Start game timer
+        hideCardTimer = new Timer(1500, new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                hideCards();
+            }
+        });        
+        hideCardTimer.setRepeats(false);
+        hideCardTimer.start();
+    }
+    
+    private void initializeUI() {
         setLayout(new BorderLayout());
         setSize(boardWidth, boardHeight);
         setLocationRelativeTo(null);
@@ -179,83 +223,130 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         textPanel.add(marksLabel);
         textPanel.add(textLabel);
         add(textPanel, BorderLayout.NORTH);
-
+    }
+    
+    private void showModeSelection() {
         // Mode selection
         String[] options = {"Single Player", "Host Multiplayer", "Join Multiplayer"};
         int choice = JOptionPane.showOptionDialog(null, "Choose mode", "Game Mode",
                 JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
 
         if (choice == 0) {
-            isMultiplayer = false;
-            shuffleCards(new Random()); // Random shuffle for single
-            marksLabel.setText("MARKS: 0");
-            textLabel.setText("ERRORS: 0");
-            
-            // Initialize single player
-            player1 = new LocalPlayer("Player", this) {
-                @Override
-                public void makeMove(int cardIndex) {
-                    // Single player - just flip the card locally
-                    game.flipCard(cardIndex);
-                }
-            };
-            currentPlayer = player1;
-            isMyTurn = true;
-        } else {
-            isMultiplayer = true;
-            String hostIP = "localhost";
-            int port = 12345;
-            boolean isServer = (choice == 1);
-
-            // Get player name BEFORE network setup
-            String myName = JOptionPane.showInputDialog("Enter your name:");
-            if (myName == null || myName.trim().isEmpty()) {
-                myName = isServer ? "Host Player" : "Guest Player";
+            startSinglePlayerMode();
+        } else if (choice == 1) {
+            startMultiplayerHostMode();
+        } else if (choice == 2) {
+            startMultiplayerClientMode();
+        }
+    }
+    
+    // Public methods for HomeScreen integration
+    public void startSinglePlayer() {
+        startSinglePlayerMode();
+        setupGameBoard();
+        hideCardTimer.start();
+    }
+    
+    public void startMultiplayerHost() {
+        startMultiplayerHostMode();
+        setupGameBoard();
+        hideCardTimer.start();
+    }
+    
+    public void startMultiplayerClient() {
+        startMultiplayerClientMode();
+        setupGameBoard();
+        hideCardTimer.start();
+    }
+    
+    private void startSinglePlayerMode() {
+        isMultiplayer = false;
+        shuffleCards(new Random()); // Random shuffle for single
+        marksLabel.setText("MARKS: 0");
+        textLabel.setText("ERRORS: 0");
+        
+        // Initialize single player
+        player1 = new LocalPlayer("Player", this) {
+            @Override
+            public void makeMove(int cardIndex) {
+                // Single player - just flip the card locally
+                game.flipCard(cardIndex);
             }
+        };
+        currentPlayer = player1;
+        isMyTurn = true;
+    }
+    
+    private void startMultiplayerHostMode() {
+        isMultiplayer = true;
+        String hostIP = "localhost";
+        int port = 12345;
 
-            if (!isServer) {
-                hostIP = JOptionPane.showInputDialog("Enter host IP:");
-                if (hostIP == null || hostIP.trim().isEmpty()) {
-                    hostIP = "localhost";
-                }
-            }
-
-            try {
-                if (isServer) {
-                    JOptionPane.showMessageDialog(null, "Waiting for another player to join...\nServer started on port " + port);
-                }
-                network = new NetworkHandler(this, isServer, hostIP, port);
-            } catch (IOException e) {
-                JOptionPane.showMessageDialog(null, "Connection failed: " + e.getMessage());
-                System.exit(1);
-            }
-
-            String opponentName = isServer ? "Client" : "Host";
-
-            if (isServer) {
-                // Host setup: Host is Player 1, Client is Player 2
-                player1 = new LocalPlayer(myName, this);        // Host = Player 1
-                player2 = new RemotePlayer(opponentName, this); // Client = Player 2
-                currentPlayer = player1;
-                isMyTurn = true; // Host starts first
-                shuffleSeed = new Random().nextLong();
-                network.sendMessage("BOARD:" + shuffleSeed);
-                shuffleCards(new Random(shuffleSeed));
-                System.out.println("HOST: I am " + player1.getName() + " (Player 1), opponent is " + player2.getName() + " (Player 2)");
-            } else {
-                // Client setup: Host is Player 1, Client is Player 2  
-                player1 = new RemotePlayer(opponentName, this); // Host = Player 1
-                player2 = new LocalPlayer(myName, this);        // Client = Player 2
-                currentPlayer = player1; // Host (Player 1) starts first
-                isMyTurn = false; // Client waits for host's turn
-                System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
-                // Shuffle will be set when BOARD message received
-            }
-
-            updateScores();
+        // Get player name BEFORE network setup
+        String myName = JOptionPane.showInputDialog("Enter your name:");
+        if (myName == null || myName.trim().isEmpty()) {
+            myName = "Host Player";
         }
 
-        //cardgame board
+        try {
+            JOptionPane.showMessageDialog(null, "Waiting for another player to join...\nServer started on port " + port);
+            network = new NetworkHandler(this, true, hostIP, port);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(null, "Connection failed: " + e.getMessage());
+            System.exit(1);
+        }
+
+        String opponentName = "Client";
+
+        // Host setup: Host is Player 1, Client is Player 2
+        player1 = new LocalPlayer(myName, this);        // Host = Player 1
+        player2 = new RemotePlayer(opponentName, this); // Client = Player 2
+        currentPlayer = player1;
+        isMyTurn = true; // Host starts first
+        shuffleSeed = new Random().nextLong();
+        network.sendMessage("BOARD:" + shuffleSeed);
+        shuffleCards(new Random(shuffleSeed));
+        System.out.println("HOST: I am " + player1.getName() + " (Player 1), opponent is " + player2.getName() + " (Player 2)");
+
+        updateScores();
+    }
+    
+    private void startMultiplayerClientMode() {
+        isMultiplayer = true;
+        String hostIP = "localhost";
+        int port = 12345;
+
+        // Get player name BEFORE network setup
+        String myName = JOptionPane.showInputDialog("Enter your name:");
+        if (myName == null || myName.trim().isEmpty()) {
+            myName = "Guest Player";
+        }
+
+        hostIP = JOptionPane.showInputDialog("Enter host IP:");
+        if (hostIP == null || hostIP.trim().isEmpty()) {
+            hostIP = "localhost";
+        }
+
+        try {
+            network = new NetworkHandler(this, false, hostIP, port);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(null, "Connection failed: " + e.getMessage());
+            System.exit(1);
+        }
+
+        String opponentName = "Host";
+
+        // Client setup: Host is Player 1, Client is Player 2  
+        player1 = new RemotePlayer(opponentName, this); // Host = Player 1
+        player2 = new LocalPlayer(myName, this);        // Client = Player 2
+        currentPlayer = player1; // Host (Player 1) starts first
+        isMyTurn = false; // Client waits for host's turn
+        System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
+
+        updateScores();
+    }
+    
+    private void setupGameBoard() {
         board = new ArrayList<JButton>();
         boardPanel.setLayout(new GridLayout(rows, columns));
         for (int i = 0; i < cardSet.size(); i++) {
@@ -556,7 +647,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     public static void main(String[] args) {
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
-                new CrashCrave();
+                new HomeScreen();
             }
         });
     }
