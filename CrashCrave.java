@@ -253,8 +253,20 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         hideCardTimer.start();
     }
     
+    public void startMultiplayerHost(String playerName) {
+        startMultiplayerHostMode(playerName);
+        setupGameBoard();
+        hideCardTimer.start();
+    }
+    
     public void startMultiplayerClient() {
         startMultiplayerClientMode();
+        setupGameBoard();
+        hideCardTimer.start();
+    }
+    
+    public void startMultiplayerClient(String playerName, String hostIP) {
+        startMultiplayerClientMode(playerName, hostIP);
         setupGameBoard();
         hideCardTimer.start();
     }
@@ -311,6 +323,34 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         updateScores();
     }
     
+    private void startMultiplayerHostMode(String playerName) {
+        isMultiplayer = true;
+        String hostIP = "localhost";
+        int port = 12345;
+
+        try {
+            // Don't show dialog - HomeScreen will handle this
+            network = new NetworkHandler(this, true, hostIP, port);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(null, "Connection failed: " + e.getMessage());
+            System.exit(1);
+        }
+
+        String opponentName = "Client";
+
+        // Host setup: Host is Player 1, Client is Player 2
+        player1 = new LocalPlayer(playerName, this);        // Host = Player 1
+        player2 = new RemotePlayer(opponentName, this); // Client = Player 2
+        currentPlayer = player1;
+        isMyTurn = true; // Host starts first
+        shuffleSeed = new Random().nextLong();
+        network.sendMessage("BOARD:" + shuffleSeed);
+        shuffleCards(new Random(shuffleSeed));
+        System.out.println("HOST: I am " + player1.getName() + " (Player 1), opponent is " + player2.getName() + " (Player 2)");
+
+        updateScores();
+    }
+    
     private void startMultiplayerClientMode() {
         isMultiplayer = true;
         String hostIP = "localhost";
@@ -339,6 +379,29 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         // Client setup: Host is Player 1, Client is Player 2  
         player1 = new RemotePlayer(opponentName, this); // Host = Player 1
         player2 = new LocalPlayer(myName, this);        // Client = Player 2
+        currentPlayer = player1; // Host (Player 1) starts first
+        isMyTurn = false; // Client waits for host's turn
+        System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
+
+        updateScores();
+    }
+    
+    private void startMultiplayerClientMode(String playerName, String hostIP) {
+        isMultiplayer = true;
+        int port = 12345;
+
+        try {
+            network = new NetworkHandler(this, false, hostIP, port);
+        } catch (IOException e) {
+            JOptionPane.showMessageDialog(null, "Connection failed: " + e.getMessage());
+            System.exit(1);
+        }
+
+        String opponentName = "Host";
+
+        // Client setup: Host is Player 1, Client is Player 2  
+        player1 = new RemotePlayer(opponentName, this); // Host = Player 1
+        player2 = new LocalPlayer(playerName, this);        // Client = Player 2
         currentPlayer = player1; // Host (Player 1) starts first
         isMyTurn = false; // Client waits for host's turn
         System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
