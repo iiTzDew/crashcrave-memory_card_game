@@ -124,7 +124,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     private int rows = 5;
     private int columns = 8;
     private int cardWidth = 45;
-    private int cardHeight = 64;
+    private int cardHeight = 80;
 
     private ArrayList<Card> cardSet; //create a deck of cards with cardnames and cardimageicons
     private ImageIcon cardBackImageIcon;
