@@ -118,7 +118,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     private String[] cardlist = { //card names 
         "burger","coffee","cookies","fries","pizza","popcorn","bread","brownie",
         "cake","chocolates","chocos","cinnomanroll","donut","hotchoco","icecream",
-        "iclaires","salad","sandwich","sandwitch","spagatti","waffle"
+        "iclaires","salad","sandwitch","spagatti","waffle"
     };
 
     private int rows = 5;
@@ -138,7 +138,6 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     private JPanel restartGamePanel = new JPanel();
     private RoundedButton restartButton = new RoundedButton("", 15);
     private RoundedLabel marksLabel = new RoundedLabel("", 15);
-    private RoundedButton youWonButton = new RoundedButton("YOU WON", 30);
 
     private int errorCount = 0;
     private int marksCount = 0;
@@ -210,25 +209,14 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                 //Re assign buttons with new cards
                 for(int i=0; i<board.size(); i++){
                     board.get(i).setIcon(cardSet.get(i).getImageIcon());
-                    board.get(i).setEnabled(true);
                 }
                 errorCount = 0;
                 marksCount = 0;
                 textLabel.setText("ERRORS: " + Integer.toString(errorCount));
                 marksLabel.setText("MARKS: " + Integer.toString(marksCount));
-                youWonButton.setVisible(false);
                 hideCardTimer.start();
             }
         });
-        // YOU WON button setup
-        youWonButton.setFont(new Font("Arial", Font.BOLD, 28));
-        youWonButton.setPreferredSize(new Dimension(300, 60));
-        youWonButton.setFocusable(false);
-        youWonButton.setVisible(false);
-        youWonButton.setEnabled(false);
-        // Add to boardPanel (overlay style)
-        boardPanel.setLayout(new OverlayLayout(boardPanel));
-        boardPanel.add(youWonButton, 0); // Add as top component
         restartGamePanel.add(restartButton);
         add(restartGamePanel, BorderLayout.SOUTH);
 
@@ -278,23 +266,9 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                     marksLabel.setText("MARKS: " + Integer.toString(marksCount));
                     card1Selected = null;
                     card2Selected = null;
-                    // Check for win condition
-                    if (marksCount == cardSet.size() / 2) {
-                        showYouWon();
-                    }
                 }
             }
         }
-    }
-
-    // Show YOU WON button and disable board
-    private void showYouWon() {
-        youWonButton.setVisible(true);
-        youWonButton.setEnabled(false);
-        for (JButton btn : board) {
-            btn.setEnabled(false);
-        }
-        gameReady = false;
     }
 
     void setUpCards(){
