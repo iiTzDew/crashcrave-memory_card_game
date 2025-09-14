@@ -391,6 +391,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         System.out.println("HOST: I am " + player1.getName() + " (Player 1), opponent is " + player2.getName() + " (Player 2)");
 
         updateScores();
+        gameReady = true; // Enable game interaction for host
     }
     
     private void startMultiplayerHostMode(String playerName) {
@@ -419,6 +420,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         System.out.println("HOST: I am " + player1.getName() + " (Player 1), opponent is " + player2.getName() + " (Player 2)");
 
         updateScores();
+        gameReady = true; // Enable game interaction for host
     }
     
     private void startMultiplayerClientMode() {
@@ -454,6 +456,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
 
         updateScores();
+        // Client will get gameReady = true when BOARD message is received
     }
     
     private void startMultiplayerClientMode(String playerName, String hostIP) {
@@ -477,6 +480,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
 
         updateScores();
+        // Client will get gameReady = true when BOARD message is received
     }
     
     private void setupGameBoard() {
@@ -672,6 +676,13 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     // Implement actionPerformed() from ActionListener (polymorphism)
     @Override
     public void actionPerformed(ActionEvent e) {
+        System.out.println("=== CARD CLICK DEBUG ===");
+        System.out.println("gameReady: " + gameReady);
+        System.out.println("hideCardTimer.isRunning(): " + hideCardTimer.isRunning());
+        System.out.println("isMultiplayer: " + isMultiplayer);
+        System.out.println("isMyTurn: " + isMyTurn);
+        System.out.println("currentPlayer: " + (currentPlayer != null ? currentPlayer.getName() : "null"));
+        
         if (!gameReady) {
             System.out.println("Game not ready yet...");
             return;
@@ -682,11 +693,6 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             System.out.println("Timer is running, ignoring click until cards are hidden");
             return;
         }
-        
-        System.out.println("DEBUG: currentPlayer=" + (currentPlayer != null ? currentPlayer.getName() : "null") + 
-                          ", isMyTurn=" + isMyTurn + 
-                          ", isMultiplayer=" + isMultiplayer +
-                          ", currentPlayer type=" + (currentPlayer != null ? currentPlayer.getClass().getSimpleName() : "null"));
         
         if (isMultiplayer && !isMyTurn) {
             System.out.println("Not your turn! Current player: " + currentPlayer.getName());
@@ -762,62 +768,39 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             card1Selected = null;
             card2Selected = null;
             System.out.println(currentPlayer.getName() + " got a match! They continue playing.");
+            
+            // CRITICAL FIX: Re-enable game for next selection after match
+            gameReady = true;
+            System.out.println("gameReady set to true after match - player can continue!");
+            
             // Player continues - NO turn switch
             
             // Check if all cards are matched
             if (allCardsMatched()) {
                 System.out.println("Game Over! All cards matched.");
-                gameReady = false;
+                showGameOverOverlay();
+                // Don't set gameReady = false - let the overlay handle game end
             }
         } else {
             // MISS: Show cards briefly, then hide them
             errorCount++;
             updateScores(); // Update error count display
+            System.out.println("=== MISS DETECTED ===");
             System.out.println(currentPlayer.getName() + " missed! Cards will be hidden after delay.");
+            System.out.println("gameReady before timer: " + gameReady);
+            System.out.println("isMyTurn before timer: " + isMyTurn);
             
             if (isMultiplayer) {
                 network.sendMessage("MATCH:false");
-                // Important: Only start timer on the current player's side
-                hideCardTimer.restart();
+                System.out.println("Starting hide timer for multiplayer miss...");
+                // Use consistent timer approach for multiplayer
+                hideCardTimer.stop(); // Stop any running timer first
+                hideCardTimer.restart(); // Restart with fresh delay
             } else {
                 // Single player - hide the cards after a delay to show the mismatch
-                System.out.println("Starting hide timer for single player mode (current selections: " + 
-                    (card1Selected != null ? "card1" : "null") + ", " + 
-                    (card2Selected != null ? "card2" : "null") + ")");
-                
-                // Ensure timer is stopped first, then restart
+                System.out.println("Starting hide timer for single player mode");
                 hideCardTimer.stop();
-                
-                // Add a backup mechanism using SwingUtilities.invokeLater as failsafe
-                final JButton backup1 = card1Selected;
-                final JButton backup2 = card2Selected;
-                
-                // Primary mechanism: Timer
                 hideCardTimer.restart();
-                
-                // Backup mechanism: Direct delayed call (failsafe)
-                SwingUtilities.invokeLater(new Runnable() {
-                    @Override
-                    public void run() {
-                        // Wait a bit longer than the timer, then check if cards are still showing
-                        Timer backupTimer = new Timer(2000, new ActionListener() {
-                            @Override
-                            public void actionPerformed(ActionEvent e) {
-                                if (backup1 != null && backup2 != null && 
-                                    backup1.getIcon() != cardBackImageIcon && 
-                                    backup2.getIcon() != cardBackImageIcon) {
-                                    System.out.println("BACKUP: Timer failed, manually hiding cards");
-                                    backup1.setIcon(cardBackImageIcon);
-                                    backup2.setIcon(cardBackImageIcon);
-                                    card1Selected = null;
-                                    card2Selected = null;
-                                }
-                            }
-                        });
-                        backupTimer.setRepeats(false);
-                        backupTimer.start();
-                    }
-                });
             }
         }
 
@@ -836,7 +819,11 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     private void switchTurn() {
         currentPlayer = (currentPlayer == player1) ? player2 : player1;
         isMyTurn = (currentPlayer instanceof LocalPlayer);
+        System.out.println("=== TURN SWITCH DEBUG ===");
         System.out.println("Turn switched to: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
+        System.out.println("Player1: " + player1.getName() + " (Local: " + (player1 instanceof LocalPlayer) + ")");
+        System.out.println("Player2: " + player2.getName() + " (Local: " + (player2 instanceof LocalPlayer) + ")");
+        System.out.println("gameReady: " + gameReady);
         network.sendMessage("TURN:" + currentPlayer.getName());
     }
 
@@ -864,21 +851,31 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                 card1Selected = null;
                 card2Selected = null;
                 System.out.println(currentPlayer.getName() + " got a match and continues!");
+                
+                // CRITICAL FIX: Enable game for opponent to continue
+                gameReady = true;
+                System.out.println("gameReady set to true after opponent match!");
+                System.out.println("DEBUG: After opponent match - gameReady: " + gameReady + ", isMyTurn: " + isMyTurn);
                 // NO turn switch - opponent continues
             } else {
                 // Opponent missed - we need to hide cards and switch turn
                 errorCount++;
                 updateScores();
                 System.out.println(currentPlayer.getName() + " missed! Starting hide timer on receiving side.");
+                System.out.println("DEBUG: After opponent miss - gameReady: " + gameReady + ", isMyTurn: " + isMyTurn);
                 // Start hide timer on the receiving side too
                 hideCardTimer.start();
             }
         } else if (message.startsWith("TURN:")) {
             String turnName = message.split(":")[1];
+            System.out.println("=== RECEIVED TURN MESSAGE ===");
             System.out.println("Received TURN message: " + turnName);
             currentPlayer = turnName.equals(player1.getName()) ? player1 : player2;
             isMyTurn = (currentPlayer instanceof LocalPlayer);
             System.out.println("Updated turn - Current: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
+            System.out.println("gameReady: " + gameReady);
+            System.out.println("Player1: " + player1.getName() + " (Local: " + (player1 instanceof LocalPlayer) + ")");
+            System.out.println("Player2: " + player2.getName() + " (Local: " + (player2 instanceof LocalPlayer) + ")");
         } else if (message.startsWith("BOARD:")) {
             shuffleSeed = Long.parseLong(message.split(":")[1]);
             shuffleCards(new Random(shuffleSeed));
@@ -886,6 +883,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                 board.get(i).setIcon(cardSet.get(i).getImageIcon());
             }
             hideCardTimer.start();
+            gameReady = true; // Enable game interaction for client
         } else if (message.startsWith("RESTART:")) {
             shuffleSeed = Long.parseLong(message.split(":")[1]);
             player1.score = 0;
@@ -1001,15 +999,15 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             card1Selected = null;
             card2Selected = null;
             
-            // Switch turns after hiding mismatched cards (only in multiplayer)
+            System.out.println("Cards cleared! Game ready for next turn.");
+            
+            // CRITICAL: Always switch turns after hiding mismatched cards in multiplayer
             if (isMultiplayer) {
-                // Only the player who made the move should send the turn switch
-                if (isMyTurn) {
-                    switchTurn();
-                    System.out.println("Cards hidden, I switched the turn!");
-                } else {
-                    System.out.println("Cards hidden, waiting for turn update from opponent.");
-                }
+                System.out.println("=== SWITCHING TURNS AFTER MISS ===");
+                System.out.println("Before switch - Current: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
+                switchTurn();
+                System.out.println("After switch - Current: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
+                System.out.println("Turn switched successfully!");
             } else {
                 // Single player - just continue playing after hiding cards
                 System.out.println("Single player: Cards hidden, ready for next selection!");
