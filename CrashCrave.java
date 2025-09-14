@@ -124,8 +124,8 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
 
     private int rows = 5;
     private int columns = 8;
-    private int cardWidth = 45;
-    private int cardHeight = 64;
+    private int cardWidth = 65;  // Increased from 45
+    private int cardHeight = 90; // Increased from 64
 
     private ArrayList<Card> cardSet; //create a deck of cards with cardnames and cardimageicons
     private ImageIcon cardBackImageIcon;
@@ -138,6 +138,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     private JPanel boardPanel = new JPanel();
     private JPanel restartGamePanel = new JPanel();
     private RoundedButton restartButton = new RoundedButton("", 15);
+    private RoundedButton quitButton = new RoundedButton("", 15);
     private RoundedLabel marksLabel = new RoundedLabel("", 15);
 
     private int errorCount = 0;
@@ -146,6 +147,10 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     private boolean gameReady = false;
     private JButton card1Selected;
     private JButton card2Selected;
+    
+    // Game over overlay components
+    private JPanel gameOverOverlay;
+    private boolean gameOverShown = false;
 
     // New fields for multiplayer
     private Player player1; // Host
@@ -163,11 +168,11 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         // Default behavior - show mode selection dialog
         showModeSelection();
         
-        setupGameBoard();
+        // Don't call setupGameBoard() here - it will be called after mode selection
         pack();
         setVisible(true);
         
-        // Start game timer
+        // Initialize timer but don't start it yet
         hideCardTimer = new Timer(1500, new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -175,7 +180,6 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             }
         });        
         hideCardTimer.setRepeats(false);
-        hideCardTimer.start();
     }
     
     // Constructor for HomeScreen integration
@@ -185,38 +189,54 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         
         if (showDialog) {
             showModeSelection();
+            setupGameBoard();
+            pack();
+            setVisible(true);
+            
+            // Initialize and start timer
+            hideCardTimer = new Timer(1500, new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    hideCards();
+                }
+            });        
+            hideCardTimer.setRepeats(false);
+            hideCardTimer.start();
+        } else {
+            // Just initialize timer but don't start it yet - will be started when game mode is selected
+            hideCardTimer = new Timer(1500, new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    hideCards();
+                }
+            });        
+            hideCardTimer.setRepeats(false);
         }
-        
-        setupGameBoard();
-        pack();
-        setVisible(true);
-        
-        // Start game timer
-        hideCardTimer = new Timer(1500, new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                hideCards();
-            }
-        });        
-        hideCardTimer.setRepeats(false);
-        hideCardTimer.start();
     }
     
     private void initializeUI() {
         setLayout(new BorderLayout());
-        setSize(boardWidth, boardHeight);
+        // Increase window size to better showcase the background
+        setSize(Math.max(boardWidth + 100, 700), Math.max(boardHeight + 150, 600));
         setLocationRelativeTo(null);
         setResizable(false);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setTitle("CrashCrave - Memory Card Game");
 
-        textLabel.setFont(new Font("Arial", Font.PLAIN, 20));
+        textLabel.setFont(new Font("Arial", Font.BOLD, 20));
         textLabel.setHorizontalAlignment(JLabel.CENTER);
         textLabel.setText("ERRORS: " + Integer.toString(errorCount));
+        textLabel.setForeground(Color.WHITE);
+        textLabel.setOpaque(true);
+        textLabel.setBackground(new Color(0, 0, 0, 180)); // Semi-transparent black background
 
         // Create MARKS display with same format as ERRORS
-        marksLabel.setFont(new Font("Arial", Font.PLAIN, 20));
+        marksLabel.setFont(new Font("Arial", Font.BOLD, 20));
         marksLabel.setHorizontalAlignment(JLabel.CENTER);
         marksLabel.setText("MARKS: " + Integer.toString(0));
+        marksLabel.setForeground(Color.WHITE);
+        marksLabel.setOpaque(true);
+        marksLabel.setBackground(new Color(0, 0, 0, 180)); // Semi-transparent black background
 
         textPanel.setPreferredSize(new Dimension(boardWidth, 30));
         textPanel.setLayout(new GridLayout(1, 2)); // 1 row, 2 columns for 50-50 split
@@ -233,10 +253,25 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
 
         if (choice == 0) {
             startSinglePlayerMode();
+            setupGameBoard();
+            pack();
+            // Don't start the hide timer - cards should already be hidden
+            gameReady = true;
+            restartButton.setEnabled(true);
         } else if (choice == 1) {
             startMultiplayerHostMode();
+            setupGameBoard();
+            pack();
+            // Don't start the hide timer - cards should already be hidden
+            gameReady = true;
+            restartButton.setEnabled(true);
         } else if (choice == 2) {
             startMultiplayerClientMode();
+            setupGameBoard();
+            pack();
+            // Don't start the hide timer - cards should already be hidden
+            gameReady = true;
+            restartButton.setEnabled(true);
         }
     }
     
@@ -244,31 +279,66 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     public void startSinglePlayer() {
         startSinglePlayerMode();
         setupGameBoard();
-        hideCardTimer.start();
+        
+        // Ensure timer is properly initialized for single player
+        if (hideCardTimer == null) {
+            hideCardTimer = new Timer(1500, new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    System.out.println("Timer triggered - calling hideCards()");
+                    hideCards();
+                }
+            });        
+            hideCardTimer.setRepeats(false);
+        }
+        
+        pack(); // Repack after setting up board
+        setVisible(true); // Make sure it's visible
+        // Don't start hide timer - cards should already be hidden
+        gameReady = true;
+        restartButton.setEnabled(true);
+        quitButton.setEnabled(true);
+        System.out.println("Single player mode started - cards will flip back when they don't match");
     }
     
     public void startMultiplayerHost() {
         startMultiplayerHostMode();
         setupGameBoard();
-        hideCardTimer.start();
+        pack(); // Repack after setting up board
+        setVisible(true); // Make sure it's visible
+        // Don't start hide timer - cards should already be hidden
+        gameReady = true;
+        restartButton.setEnabled(true);
     }
     
     public void startMultiplayerHost(String playerName) {
         startMultiplayerHostMode(playerName);
         setupGameBoard();
-        hideCardTimer.start();
+        pack(); // Repack after setting up board
+        setVisible(true); // Make sure it's visible
+        // Don't start hide timer - cards should already be hidden
+        gameReady = true;
+        restartButton.setEnabled(true);
     }
     
     public void startMultiplayerClient() {
         startMultiplayerClientMode();
         setupGameBoard();
-        hideCardTimer.start();
+        pack(); // Repack after setting up board
+        setVisible(true); // Make sure it's visible
+        // Don't start hide timer - cards should already be hidden
+        gameReady = true;
+        restartButton.setEnabled(true);
     }
     
     public void startMultiplayerClient(String playerName, String hostIP) {
         startMultiplayerClientMode(playerName, hostIP);
         setupGameBoard();
-        hideCardTimer.start();
+        pack(); // Repack after setting up board
+        setVisible(true); // Make sure it's visible
+        // Don't start hide timer - cards should already be hidden
+        gameReady = true;
+        restartButton.setEnabled(true);
     }
     
     private void startSinglePlayerMode() {
@@ -410,26 +480,97 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     }
     
     private void setupGameBoard() {
+        // Remove previous components completely
+        this.getContentPane().removeAll();
+        
+        // Recreate the text panel (MARKS and ERRORS)
+        textPanel = new JPanel();
+        textPanel.setPreferredSize(new Dimension(boardWidth, 30));
+        textPanel.setLayout(new GridLayout(1, 2));
+        textPanel.setOpaque(false); // Make transparent to show background
+        textPanel.add(marksLabel);
+        textPanel.add(textLabel);
+        add(textPanel, BorderLayout.NORTH);
+        
+        // Create a main panel with background image
+        JPanel mainGamePanel = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                // Load and draw HomeScreen background image
+                try {
+                    ImageIcon bgImage = new ImageIcon(getClass().getResource("homeScreenImage/HomeScreen.png"));
+                    if (bgImage.getImageLoadStatus() == MediaTracker.COMPLETE) {
+                        // Draw background image scaled to fit the panel
+                        g.drawImage(bgImage.getImage(), 0, 0, getWidth(), getHeight(), this);
+                        
+                        // Add a semi-transparent overlay to make cards more visible
+                        g.setColor(new Color(0, 0, 0, 100)); // 100/255 = ~40% transparency
+                        g.fillRect(0, 0, getWidth(), getHeight());
+                    } else {
+                        // Fallback if image not found
+                        g.setColor(new Color(45, 45, 45));
+                        g.fillRect(0, 0, getWidth(), getHeight());
+                    }
+                } catch (Exception e) {
+                    // Fallback design
+                    g.setColor(new Color(45, 45, 45));
+                    g.fillRect(0, 0, getWidth(), getHeight());
+                    System.out.println("Could not load background image: " + e.getMessage());
+                }
+            }
+        };
+        mainGamePanel.setLayout(new BorderLayout());
+        
+        // Recreate the board panel
+        boardPanel = new JPanel();
+        boardPanel.removeAll();
+        boardPanel.setOpaque(false); // Make transparent to show background
         board = new ArrayList<JButton>();
         boardPanel.setLayout(new GridLayout(rows, columns));
-        for (int i = 0; i < cardSet.size(); i++) {
+        
+        // Add some padding around the card grid
+        JPanel paddedBoardPanel = new JPanel(new BorderLayout());
+        paddedBoardPanel.setOpaque(false); // Make transparent
+        paddedBoardPanel.setBorder(BorderFactory.createEmptyBorder(40, 40, 40, 40));
+        paddedBoardPanel.add(boardPanel, BorderLayout.CENTER);
+        
+        // Ensure we create exactly rows * columns buttons
+        int totalSlots = rows * columns;
+        for (int i = 0; i < totalSlots; i++) {
             JButton tile = new JButton();
             tile.setPreferredSize(new Dimension(cardWidth, cardHeight));
             tile.setOpaque(true);
-            tile.setIcon(cardSet.get(i).getImageIcon());
+            // Add white borders around cards for better definition against background
+            tile.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Color.WHITE, 2),
+                BorderFactory.createLineBorder(Color.DARK_GRAY, 1)
+            ));
+            // Show all cards face down at the start
+            tile.setIcon(cardBackImageIcon);
             tile.setFocusable(false);
             tile.addActionListener(this);
             board.add(tile);
             boardPanel.add(tile);
         }
-        add(boardPanel);
+        
+        // Add the padded board panel to the main game panel
+        mainGamePanel.add(paddedBoardPanel, BorderLayout.CENTER);
+        add(mainGamePanel, BorderLayout.CENTER);
 
-        //restart game button 
-        restartButton.setFont(new Font("Arial", Font.PLAIN, 16));
+        // Recreate restart button panel
+        restartGamePanel = new JPanel();
+        restartGamePanel.setLayout(new GridLayout(1, 2, 10, 0)); // 1 row, 2 columns with 10px gap
+        restartGamePanel.setOpaque(false); // Make transparent to show background
+        
+        // Setup Restart Button
+        restartButton.setFont(new Font("Arial", Font.BOLD, 16));
         restartButton.setText("Restart Game");
-        restartButton.setPreferredSize(new Dimension(boardWidth, 30));
+        restartButton.setPreferredSize(new Dimension(boardWidth/2 - 5, 35));
         restartButton.setFocusable(false);
         restartButton.setEnabled(false);
+        restartButton.setForeground(Color.WHITE);
+        restartButton.setBackground(new Color(34, 139, 34)); // Forest Green
         restartButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -438,9 +579,14 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                 }
                 gameReady = false;
                 restartButton.setEnabled(false);
+                quitButton.setEnabled(false);
                 card1Selected = null;
                 card2Selected = null;
                 errorCount = 0;
+                
+                // Reset game over overlay
+                removeGameOverOverlay();
+                
                 if (isMultiplayer) {
                     player1.score = 0;
                     player2.score = 0;
@@ -450,21 +596,61 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                     currentPlayer = player1;
                     isMyTurn = (currentPlayer instanceof LocalPlayer);
                 } else {
+                    // Single player restart
+                    if (player1 != null) {
+                        player1.score = 0;
+                    }
                     shuffleCards(new Random());
                 }
-                // Re-assign buttons with new cards
+                // Re-assign buttons with new cards - start face down
                 for (int i = 0; i < board.size(); i++) {
-                    board.get(i).setIcon(cardSet.get(i).getImageIcon());
+                    board.get(i).setIcon(cardBackImageIcon);
                 }
                 updateScores();
-                hideCardTimer.start();
+                gameReady = true;
+                restartButton.setEnabled(true);
+                quitButton.setEnabled(true);
             }
         });
+        
+        // Setup Quit Button
+        quitButton.setFont(new Font("Arial", Font.BOLD, 16));
+        quitButton.setText("Quit Game");
+        quitButton.setPreferredSize(new Dimension(boardWidth/2 - 5, 35));
+        quitButton.setFocusable(false);
+        quitButton.setEnabled(true); // Always enabled
+        quitButton.setForeground(Color.WHITE);
+        quitButton.setBackground(new Color(220, 20, 60)); // Crimson Red
+        quitButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // Show confirmation dialog
+                int choice = JOptionPane.showConfirmDialog(
+                    CrashCrave.this,
+                    "Are you sure you want to quit the game?",
+                    "Quit Game",
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.QUESTION_MESSAGE
+                );
+                
+                if (choice == JOptionPane.YES_OPTION) {
+                    // Close network connections if in multiplayer mode
+                    if (isMultiplayer && network != null) {
+                        try {
+                            network.close();
+                        } catch (Exception ex) {
+                            System.out.println("Error closing network: " + ex.getMessage());
+                        }
+                    }
+                    // Exit the application
+                    System.exit(0);
+                }
+            }
+        });
+        
         restartGamePanel.add(restartButton);
+        restartGamePanel.add(quitButton);
         add(restartGamePanel, BorderLayout.SOUTH);
-
-        pack();
-        setVisible(true);
 
         //start game 
         hideCardTimer = new Timer(1500, new ActionListener() {
@@ -474,7 +660,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             }
         });        
         hideCardTimer.setRepeats(false);
-        hideCardTimer.start();
+        // Don't start the timer automatically - cards should already be hidden
     }
 
     // Implement start() from Game (abstraction)
@@ -488,6 +674,12 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     public void actionPerformed(ActionEvent e) {
         if (!gameReady) {
             System.out.println("Game not ready yet...");
+            return;
+        }
+        
+        // Don't allow new clicks while timer is running (cards are being hidden)
+        if (hideCardTimer.isRunning()) {
+            System.out.println("Timer is running, ignoring click until cards are hidden");
             return;
         }
         
@@ -506,23 +698,60 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             int index = board.indexOf(tile);
             System.out.println("Player " + currentPlayer.getName() + " clicked card " + index);
             currentPlayer.makeMove(index);
+        } else {
+            System.out.println("Card already revealed, ignoring click");
         }
     }
 
     public void flipCard(int index) {
         JButton tile = board.get(index);
+        
+        // Prevent clicking the same card twice or clicking when timer is running
+        if (tile == card1Selected || tile == card2Selected) {
+            System.out.println("Card already selected, ignoring click");
+            return;
+        }
+        
+        // Stop any running timer to prevent conflicts
+        if (hideCardTimer.isRunning()) {
+            hideCardTimer.stop();
+            System.out.println("Stopped running timer due to new card selection");
+        }
+        
         tile.setIcon(cardSet.get(index).getImageIcon());
 
         if (card1Selected == null) {
             card1Selected = tile;
+            System.out.println("First card selected at index " + index);
         } else if (card2Selected == null) {
             card2Selected = tile;
+            System.out.println("Second card selected at index " + index + ", checking for match...");
             checkForMatch();
         }
     }
 
     private void checkForMatch() {
-        boolean match = card1Selected.getIcon().equals(card2Selected.getIcon());
+        // Ensure we have both cards selected
+        if (card1Selected == null || card2Selected == null) {
+            System.out.println("ERROR: checkForMatch called without both cards selected!");
+            return;
+        }
+        
+        // Get the indices of the selected cards to compare their actual card objects
+        int index1 = board.indexOf(card1Selected);
+        int index2 = board.indexOf(card2Selected);
+        
+        // Validate indices
+        if (index1 == -1 || index2 == -1) {
+            System.out.println("ERROR: Invalid card indices in checkForMatch!");
+            return;
+        }
+        
+        // Compare the card names instead of ImageIcons for more reliable matching
+        boolean match = cardSet.get(index1).getName().equals(cardSet.get(index2).getName());
+        
+        System.out.println("Comparing cards: " + cardSet.get(index1).getName() + " vs " + cardSet.get(index2).getName() + " -> " + (match ? "MATCH" : "NO MATCH"));
+        
         if (match) {
             // MATCH: Player scores and continues playing
             currentPlayer.incrementScore();
@@ -534,23 +763,66 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             card2Selected = null;
             System.out.println(currentPlayer.getName() + " got a match! They continue playing.");
             // Player continues - NO turn switch
+            
+            // Check if all cards are matched
+            if (allCardsMatched()) {
+                System.out.println("Game Over! All cards matched.");
+                gameReady = false;
+            }
         } else {
-            // MISS: Show cards briefly, then switch turns
+            // MISS: Show cards briefly, then hide them
             errorCount++;
-            System.out.println(currentPlayer.getName() + " missed! Turn will switch after hiding cards.");
+            updateScores(); // Update error count display
+            System.out.println(currentPlayer.getName() + " missed! Cards will be hidden after delay.");
+            
             if (isMultiplayer) {
                 network.sendMessage("MATCH:false");
                 // Important: Only start timer on the current player's side
-                hideCardTimer.start();
+                hideCardTimer.restart();
             } else {
-                textLabel.setText("ERRORS: " + errorCount);
-                hideCardTimer.start();
+                // Single player - hide the cards after a delay to show the mismatch
+                System.out.println("Starting hide timer for single player mode (current selections: " + 
+                    (card1Selected != null ? "card1" : "null") + ", " + 
+                    (card2Selected != null ? "card2" : "null") + ")");
+                
+                // Ensure timer is stopped first, then restart
+                hideCardTimer.stop();
+                
+                // Add a backup mechanism using SwingUtilities.invokeLater as failsafe
+                final JButton backup1 = card1Selected;
+                final JButton backup2 = card2Selected;
+                
+                // Primary mechanism: Timer
+                hideCardTimer.restart();
+                
+                // Backup mechanism: Direct delayed call (failsafe)
+                SwingUtilities.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        // Wait a bit longer than the timer, then check if cards are still showing
+                        Timer backupTimer = new Timer(2000, new ActionListener() {
+                            @Override
+                            public void actionPerformed(ActionEvent e) {
+                                if (backup1 != null && backup2 != null && 
+                                    backup1.getIcon() != cardBackImageIcon && 
+                                    backup2.getIcon() != cardBackImageIcon) {
+                                    System.out.println("BACKUP: Timer failed, manually hiding cards");
+                                    backup1.setIcon(cardBackImageIcon);
+                                    backup2.setIcon(cardBackImageIcon);
+                                    card1Selected = null;
+                                    card2Selected = null;
+                                }
+                            }
+                        });
+                        backupTimer.setRepeats(false);
+                        backupTimer.start();
+                    }
+                });
             }
         }
 
         if (allCardsMatched()) {
-            String winner = isMultiplayer ? (player1.getScore() > player2.getScore() ? player1.getName() : player2.getName()) : "You";
-            JOptionPane.showMessageDialog(null, "Game Over! Winner: " + winner);
+            showGameOverOverlay();
         }
     }
 
@@ -573,6 +845,7 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             marksLabel.setText(player1.getName() + ": " + player1.getScore());
             textLabel.setText(player2.getName() + ": " + player2.getScore());
         } else {
+            // Single player mode - show marks and errors
             marksLabel.setText("MARKS: " + (player1 != null ? player1.getScore() : 0));
             textLabel.setText("ERRORS: " + errorCount);
         }
@@ -636,23 +909,51 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
 
     void setUpCards(){
         cardSet = new ArrayList<Card>();
-        for(String cardName: cardlist){
+        
+        // Only use first 20 cards to fit in 5x8 grid (40 total with pairs)
+        String[] selectedCards = new String[20];
+        System.arraycopy(cardlist, 0, selectedCards, 0, 20);
+        
+        // Create a default image in case some images can't be loaded
+        ImageIcon defaultIcon = null;
+        
+        for(String cardName: selectedCards){
             //load the card images 
             java.net.URL imageUrl = getClass().getResource("CrashCraveimages/" + cardName + ".jpg");
             if (imageUrl == null) {
                 imageUrl = getClass().getResource("./CrashCraveimages/" + cardName + ".jpg");
-                if (imageUrl == null) {
-                    System.out.println("Warning: Image not found: " + cardName + ".jpg");
-                    continue;
-                }
             }
-            Image cardImg = new ImageIcon(imageUrl).getImage();
-            ImageIcon cardImageIcon = new ImageIcon(cardImg.getScaledInstance(cardWidth, cardHeight, java.awt.Image.SCALE_SMOOTH));
+            
+            ImageIcon cardImageIcon;
+            if (imageUrl != null) {
+                Image cardImg = new ImageIcon(imageUrl).getImage();
+                cardImageIcon = new ImageIcon(cardImg.getScaledInstance(cardWidth, cardHeight, java.awt.Image.SCALE_SMOOTH));
+            } else {
+                System.out.println("Warning: Image not found: " + cardName + ".jpg - using default");
+                // Create a simple colored icon as fallback
+                if (defaultIcon == null) {
+                    defaultIcon = new ImageIcon();
+                }
+                cardImageIcon = defaultIcon;
+            }
 
             Card card = new Card(cardName, cardImageIcon);
             cardSet.add(card);
         }
-        cardSet.addAll(cardSet); 
+        
+        // Ensure we have exactly 20 cards even if some images failed to load
+        while (cardSet.size() < 20) {
+            Card dummyCard = new Card("dummy" + cardSet.size(), defaultIcon);
+            cardSet.add(dummyCard);
+        }
+        
+        // Create pairs for memory game - duplicate each card once
+        ArrayList<Card> cardPairs = new ArrayList<Card>();
+        for (Card card : cardSet) {
+            cardPairs.add(card); // First copy
+            cardPairs.add(card); // Second copy (pair)
+        }
+        cardSet = cardPairs; 
 
         //load the back card image 
         java.net.URL backImageUrl = getClass().getResource("CrashCraveimages/back.jpg");
@@ -677,14 +978,30 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     }
 
     void hideCards(){
+        System.out.println("hideCards() called - gameReady: " + gameReady + 
+            ", card1Selected: " + (card1Selected != null ? "present" : "null") + 
+            ", card2Selected: " + (card2Selected != null ? "present" : "null"));
+            
         if(gameReady && card1Selected != null && card2Selected != null){
-            // Hide the mismatched cards
-            card1Selected.setIcon(cardBackImageIcon);
-            card2Selected.setIcon(cardBackImageIcon);
+            // Hide the mismatched cards by setting them back to card back image
+            System.out.println("Hiding mismatched cards...");
+            
+            // Double-check that these are still valid buttons and not already hidden
+            if (card1Selected.getIcon() != cardBackImageIcon) {
+                card1Selected.setIcon(cardBackImageIcon);
+                System.out.println("Card 1 flipped back to back side");
+            }
+            
+            if (card2Selected.getIcon() != cardBackImageIcon) {
+                card2Selected.setIcon(cardBackImageIcon);
+                System.out.println("Card 2 flipped back to back side");
+            }
+            
+            // Reset selections
             card1Selected = null;
             card2Selected = null;
             
-            // Switch turns after hiding mismatched cards
+            // Switch turns after hiding mismatched cards (only in multiplayer)
             if (isMultiplayer) {
                 // Only the player who made the move should send the turn switch
                 if (isMyTurn) {
@@ -693,17 +1010,117 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                 } else {
                     System.out.println("Cards hidden, waiting for turn update from opponent.");
                 }
+            } else {
+                // Single player - just continue playing after hiding cards
+                System.out.println("Single player: Cards hidden, ready for next selection!");
             }
-        } else {
-            // Initial game setup - hide all cards
+        } else if (gameReady) {
+            // This might be initial game setup - hide all cards
+            System.out.println("Hiding all cards (initial setup)");
             for(int i=0; i<board.size(); i++){
                 board.get(i).setIcon(cardBackImageIcon);
             }
             gameReady = true; 
             restartButton.setEnabled(true);
+            quitButton.setEnabled(true);
             if (currentPlayer != null) {
                 System.out.println("Game is ready! " + currentPlayer.getName() + " starts first.");
             }
+        } else {
+            System.out.println("WARNING: hideCards() called but conditions not met!");
+        }
+    }
+    
+    private void showGameOverOverlay() {
+        if (gameOverShown) return; // Prevent showing multiple times
+        gameOverShown = true;
+        
+        // Create the overlay panel
+        gameOverOverlay = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                // Draw semi-transparent black background
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setColor(new Color(0, 0, 0, 180)); // Semi-transparent black
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        gameOverOverlay.setLayout(null);
+        gameOverOverlay.setOpaque(false);
+        
+        // Create the black horizontal box
+        JPanel blackBox = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setColor(Color.BLACK);
+                g2d.fillRect(0, 0, getWidth(), getHeight());
+                // Add subtle border
+                g2d.setColor(Color.WHITE);
+                g2d.setStroke(new BasicStroke(2));
+                g2d.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+            }
+        };
+        blackBox.setLayout(new BoxLayout(blackBox, BoxLayout.Y_AXIS));
+        blackBox.setOpaque(false);
+        
+        // Create game over text
+        String winner = isMultiplayer ? (player1.getScore() > player2.getScore() ? player1.getName() : player2.getName()) : "You Won!";
+        JLabel winnerLabel = new JLabel(winner, JLabel.CENTER);
+        winnerLabel.setFont(new Font("Arial", Font.BOLD, 36));
+        winnerLabel.setForeground(Color.WHITE);
+        winnerLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        // Create score information
+        int matches = player1 != null ? player1.getScore() : 0;
+        JLabel scoreLabel = new JLabel("Matches: " + matches + " | Errors: " + errorCount, JLabel.CENTER);
+        scoreLabel.setFont(new Font("Arial", Font.PLAIN, 20));
+        scoreLabel.setForeground(Color.WHITE);
+        scoreLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        // Add spacing and components to black box
+        blackBox.add(Box.createVerticalGlue());
+        blackBox.add(winnerLabel);
+        blackBox.add(Box.createRigidArea(new Dimension(0, 10)));
+        blackBox.add(scoreLabel);
+        blackBox.add(Box.createVerticalGlue());
+        
+        // Position the black box (edge to edge horizontally, centered vertically)
+        int overlayWidth = getContentPane().getWidth();
+        int overlayHeight = getContentPane().getHeight();
+        int boxHeight = 120;
+        int boxY = (overlayHeight - boxHeight) / 2;
+        
+        blackBox.setBounds(0, boxY, overlayWidth, boxHeight);
+        gameOverOverlay.setBounds(0, 0, overlayWidth, overlayHeight);
+        
+        // Add the black box to the overlay
+        gameOverOverlay.add(blackBox);
+        
+        // Add click listener to close overlay
+        gameOverOverlay.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                removeGameOverOverlay();
+            }
+        });
+        
+        // Add the overlay to the frame (on top of everything)
+        getLayeredPane().add(gameOverOverlay, JLayeredPane.MODAL_LAYER);
+        
+        // Repaint to show the overlay
+        repaint();
+    }
+    
+    private void removeGameOverOverlay() {
+        if (gameOverOverlay != null) {
+            getLayeredPane().remove(gameOverOverlay);
+            gameOverOverlay = null;
+            gameOverShown = false;
+            repaint();
         }
     }
 

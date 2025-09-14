@@ -215,9 +215,9 @@ public class HomeScreen extends JFrame {
         buttonPanel.add(Box.createVerticalGlue());
         buttonPanel.add(Box.createVerticalGlue());
         
-        // Create main menu buttons - START and EXIT
+        // Create main menu buttons - START and QUIT
         JButton startButton = createStyledButton("START");
-        JButton exitButton = createStyledButton("EXIT");
+        JButton quitButton = createStyledButton("QUIT");
         
         // Add action listeners
         startButton.addActionListener(new ActionListener() {
@@ -227,7 +227,7 @@ public class HomeScreen extends JFrame {
             }
         });
         
-        exitButton.addActionListener(new ActionListener() {
+        quitButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 System.exit(0);
@@ -237,7 +237,7 @@ public class HomeScreen extends JFrame {
         // Add buttons to panel with spacing
         buttonPanel.add(startButton);
         buttonPanel.add(Box.createRigidArea(new Dimension(0, 20)));
-        buttonPanel.add(exitButton);
+        buttonPanel.add(quitButton);
         
         // Add space at the bottom
         buttonPanel.add(Box.createVerticalGlue());
