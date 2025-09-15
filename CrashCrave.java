@@ -90,6 +90,9 @@ interface ICard {
 }
 
 public class CrashCrave extends JFrame implements ActionListener, Game {
+    // Add a set to track matched card indices
+    private java.util.Set<Integer> matchedCardIndices;
+    
     // Step 2: Card implements ICard and uses encapsulation
     private class Card implements ICard {
         private String cardName;
@@ -162,6 +165,9 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     private long shuffleSeed = 0;
 
     public CrashCrave() {
+        // Initialize the matched card indices set
+        matchedCardIndices = new java.util.HashSet<Integer>();
+        
         setUpCards();
         initializeUI();
         
@@ -184,6 +190,9 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     
     // Constructor for HomeScreen integration
     public CrashCrave(boolean showDialog) {
+        // Initialize the matched card indices set
+        matchedCardIndices = new java.util.HashSet<Integer>();
+        
         setUpCards();
         initializeUI();
         
@@ -381,14 +390,20 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         String opponentName = "Client";
 
         // Host setup: Host is Player 1, Client is Player 2
-        player1 = new LocalPlayer(myName, this);        // Host = Player 1
-        player2 = new RemotePlayer(opponentName, this); // Client = Player 2
-        currentPlayer = player1;
+        player1 = new LocalPlayer(myName, this);        // Host = Player 1 (Local)
+        player2 = new RemotePlayer(opponentName, this); // Client = Player 2 (Remote)
+        currentPlayer = player1; // Host always starts first
         isMyTurn = true; // Host starts first
         shuffleSeed = new Random().nextLong();
+        
+        // Send initial game state to client
+        network.sendMessage("HOSTNAME:" + myName); // Send host's actual name
         network.sendMessage("BOARD:" + shuffleSeed);
+        network.sendMessage("TURN:" + currentPlayer.getName()); // Explicitly tell client who starts
+        
         shuffleCards(new Random(shuffleSeed));
         System.out.println("HOST: I am " + player1.getName() + " (Player 1), opponent is " + player2.getName() + " (Player 2)");
+        System.out.println("HOST: I start first!");
 
         updateScores();
         gameReady = true; // Enable game interaction for host
@@ -410,14 +425,20 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         String opponentName = "Client";
 
         // Host setup: Host is Player 1, Client is Player 2
-        player1 = new LocalPlayer(playerName, this);        // Host = Player 1
-        player2 = new RemotePlayer(opponentName, this); // Client = Player 2
-        currentPlayer = player1;
+        player1 = new LocalPlayer(playerName, this);        // Host = Player 1 (Local)
+        player2 = new RemotePlayer(opponentName, this); // Client = Player 2 (Remote)
+        currentPlayer = player1; // Host always starts first
         isMyTurn = true; // Host starts first
         shuffleSeed = new Random().nextLong();
+        
+        // Send initial game state to client
+        network.sendMessage("HOSTNAME:" + playerName); // Send host's actual name
         network.sendMessage("BOARD:" + shuffleSeed);
+        network.sendMessage("TURN:" + currentPlayer.getName()); // Explicitly tell client who starts
+        
         shuffleCards(new Random(shuffleSeed));
         System.out.println("HOST: I am " + player1.getName() + " (Player 1), opponent is " + player2.getName() + " (Player 2)");
+        System.out.println("HOST: I start first!");
 
         updateScores();
         gameReady = true; // Enable game interaction for host
@@ -449,11 +470,12 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         String opponentName = "Host";
 
         // Client setup: Host is Player 1, Client is Player 2  
-        player1 = new RemotePlayer(opponentName, this); // Host = Player 1
-        player2 = new LocalPlayer(myName, this);        // Client = Player 2
-        currentPlayer = player1; // Host (Player 1) starts first
+        player1 = new RemotePlayer(opponentName, this); // Host = Player 1 (Remote)
+        player2 = new LocalPlayer(myName, this);        // Client = Player 2 (Local)
+        currentPlayer = player1; // Host (Player 1) always starts first
         isMyTurn = false; // Client waits for host's turn
         System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
+        System.out.println("CLIENT: Waiting for host to start...");
 
         updateScores();
         // Client will get gameReady = true when BOARD message is received
@@ -473,11 +495,12 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         String opponentName = "Host";
 
         // Client setup: Host is Player 1, Client is Player 2  
-        player1 = new RemotePlayer(opponentName, this); // Host = Player 1
-        player2 = new LocalPlayer(playerName, this);        // Client = Player 2
-        currentPlayer = player1; // Host (Player 1) starts first
+        player1 = new RemotePlayer(opponentName, this); // Host = Player 1 (Remote)
+        player2 = new LocalPlayer(playerName, this);        // Client = Player 2 (Local)
+        currentPlayer = player1; // Host (Player 1) always starts first
         isMyTurn = false; // Client waits for host's turn
         System.out.println("CLIENT: I am " + player2.getName() + " (Player 2), opponent is " + player1.getName() + " (Player 1)");
+        System.out.println("CLIENT: Waiting for host to start...");
 
         updateScores();
         // Client will get gameReady = true when BOARD message is received
@@ -588,6 +611,10 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                 card2Selected = null;
                 errorCount = 0;
                 
+                // Clear the matched card indices set
+                matchedCardIndices.clear();
+                System.out.println("Cleared matched card indices for restart");
+                
                 // Reset game over overlay
                 removeGameOverOverlay();
                 
@@ -596,9 +623,16 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
                     player2.score = 0;
                     shuffleSeed = new Random().nextLong();
                     shuffleCards(new Random(shuffleSeed));
-                    network.sendMessage("RESTART:" + shuffleSeed);
+                    
+                    // Host always starts first after restart
                     currentPlayer = player1;
                     isMyTurn = (currentPlayer instanceof LocalPlayer);
+                    
+                    // Send restart message with new board and turn info
+                    network.sendMessage("RESTART:" + shuffleSeed);
+                    network.sendMessage("TURN:" + currentPlayer.getName());
+                    
+                    System.out.println("Game restarted - " + currentPlayer.getName() + " starts first!");
                 } else {
                     // Single player restart
                     if (player1 != null) {
@@ -700,6 +734,10 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         }
         
         JButton tile = (JButton) e.getSource();
+        System.out.println("Button clicked - Current icon: " + (tile.getIcon() == cardBackImageIcon ? "BACK" : "FRONT"));
+        System.out.println("cardBackImageIcon: " + cardBackImageIcon);
+        System.out.println("tile.getIcon(): " + tile.getIcon());
+        
         if (tile.getIcon() == cardBackImageIcon) {
             int index = board.indexOf(tile);
             System.out.println("Player " + currentPlayer.getName() + " clicked card " + index);
@@ -710,7 +748,11 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     }
 
     public void flipCard(int index) {
+        System.out.println("=== FLIP CARD DEBUG ===");
+        System.out.println("Attempting to flip card at index: " + index);
+        
         JButton tile = board.get(index);
+        System.out.println("Current tile icon: " + (tile.getIcon() == cardBackImageIcon ? "BACK" : "FRONT"));
         
         // Prevent clicking the same card twice or clicking when timer is running
         if (tile == card1Selected || tile == card2Selected) {
@@ -724,7 +766,9 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             System.out.println("Stopped running timer due to new card selection");
         }
         
+        System.out.println("Setting card icon to: " + cardSet.get(index).getName());
         tile.setIcon(cardSet.get(index).getImageIcon());
+        System.out.println("Card icon set successfully");
 
         if (card1Selected == null) {
             card1Selected = tile;
@@ -754,58 +798,87 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
         }
         
         // Compare the card names instead of ImageIcons for more reliable matching
-        boolean match = cardSet.get(index1).getName().equals(cardSet.get(index2).getName());
+        String card1Name = cardSet.get(index1).getName();
+        String card2Name = cardSet.get(index2).getName();
+        boolean match = card1Name.equals(card2Name);
         
-        System.out.println("Comparing cards: " + cardSet.get(index1).getName() + " vs " + cardSet.get(index2).getName() + " -> " + (match ? "MATCH" : "NO MATCH"));
+        System.out.println("=== DETAILED MATCH CHECK ===");
+        System.out.println("Index1: " + index1 + ", Index2: " + index2);
+        System.out.println("Card1 name: '" + card1Name + "'");
+        System.out.println("Card2 name: '" + card2Name + "'");
+        System.out.println("Names equal: " + match);
+        System.out.println("Comparing cards: " + card1Name + " vs " + card2Name + " -> " + (match ? "MATCH" : "NO MATCH"));
+        System.out.println("Match detection result: " + match);
         
         if (match) {
             // MATCH: Player scores and continues playing
             currentPlayer.incrementScore();
             updateScores();
+            
+            // Add matched card indices to our tracked set
+            matchedCardIndices.add(index1);
+            matchedCardIndices.add(index2);
+            
+            System.out.println("Added matched indices to tracking set: " + index1 + ", " + index2);
+            System.out.println("Current matched indices: " + matchedCardIndices);
+            
             if (isMultiplayer) {
-                network.sendMessage("MATCH:true");
+                // Send match notification with card indices to opponent
+                network.sendMessage("MATCH:true:" + index1 + ":" + index2);
+                System.out.println(currentPlayer.getName() + " got a match! They continue playing.");
             }
+            
+            // Clear card selections
             card1Selected = null;
             card2Selected = null;
-            System.out.println(currentPlayer.getName() + " got a match! They continue playing.");
             
-            // CRITICAL FIX: Re-enable game for next selection after match
-            gameReady = true;
-            System.out.println("gameReady set to true after match - player can continue!");
-            
-            // Player continues - NO turn switch
+            // MATCH - Player continues their turn (NO turn switch)
+            System.out.println(currentPlayer.getName() + " gets to continue after match!");
             
             // Check if all cards are matched
             if (allCardsMatched()) {
                 System.out.println("Game Over! All cards matched.");
                 showGameOverOverlay();
-                // Don't set gameReady = false - let the overlay handle game end
+                return;
             }
+            
+            // Re-enable game for next selection after match
+            gameReady = true;
+            return; // CRITICAL: Exit here to prevent executing miss logic!
+            
         } else {
-            // MISS: Show cards briefly, then hide them
+            // NO MATCH: Show cards briefly, then hide them and switch turns
             errorCount++;
             updateScores(); // Update error count display
+            
             System.out.println("=== MISS DETECTED ===");
-            System.out.println(currentPlayer.getName() + " missed! Cards will be hidden after delay.");
-            System.out.println("gameReady before timer: " + gameReady);
-            System.out.println("isMyTurn before timer: " + isMyTurn);
+            System.out.println(currentPlayer.getName() + " missed! Cards will be hidden and turn will switch.");
             
             if (isMultiplayer) {
-                network.sendMessage("MATCH:false");
-                System.out.println("Starting hide timer for multiplayer miss...");
-                // Use consistent timer approach for multiplayer
+                // Send miss notification to opponent
+                network.sendMessage("MATCH:false:" + index1 + ":" + index2);
+                
+                // Disable game interaction until cards are hidden and turns switch
+                gameReady = false;
+                
+                // Start timer to hide cards after delay - ensure local miss switches turns
                 hideCardTimer.stop(); // Stop any running timer first
-                hideCardTimer.restart(); // Restart with fresh delay
+                hideCardTimer = new Timer(1500, new ActionListener() {
+                    @Override
+                    public void actionPerformed(ActionEvent e) {
+                        System.out.println("LOCAL MISS TIMER FIRED - calling hideCards(true)");
+                        hideCards(true); // LOCAL miss - switch turns
+                    }
+                });
+                hideCardTimer.setRepeats(false);
+                hideCardTimer.start();
+                
             } else {
                 // Single player - hide the cards after a delay to show the mismatch
-                System.out.println("Starting hide timer for single player mode");
+                gameReady = false;
                 hideCardTimer.stop();
                 hideCardTimer.restart();
             }
-        }
-
-        if (allCardsMatched()) {
-            showGameOverOverlay();
         }
     }
 
@@ -817,14 +890,24 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     }
 
     private void switchTurn() {
+        // Clear any selected cards when switching turns
+        card1Selected = null;
+        card2Selected = null;
+        
+        // Switch the current player
         currentPlayer = (currentPlayer == player1) ? player2 : player1;
         isMyTurn = (currentPlayer instanceof LocalPlayer);
+        
         System.out.println("=== TURN SWITCH DEBUG ===");
         System.out.println("Turn switched to: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
         System.out.println("Player1: " + player1.getName() + " (Local: " + (player1 instanceof LocalPlayer) + ")");
         System.out.println("Player2: " + player2.getName() + " (Local: " + (player2 instanceof LocalPlayer) + ")");
         System.out.println("gameReady: " + gameReady);
-        network.sendMessage("TURN:" + currentPlayer.getName());
+        
+        // Make sure we're sending turn updates over the network
+        if (network != null) {
+            network.sendMessage("TURN:" + currentPlayer.getName());
+        }
     }
 
     private void updateScores() {
@@ -839,60 +922,129 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     }
 
     public void handleReceivedMessage(String message) {
-        if (message.startsWith("FLIP:")) {
+        System.out.println("=== RECEIVED MESSAGE: " + message + " ===");
+        
+    if (message.startsWith("FLIP:")) {
             int index = Integer.parseInt(message.split(":")[1]);
+            System.out.println("Opponent flipped card at index: " + index);
             flipCard(index);
+            
         } else if (message.startsWith("MATCH:")) {
-            boolean match = Boolean.parseBoolean(message.split(":")[1]);
+            // Only process MATCH messages if it's NOT our turn (remote player's result)
+            if (isMyTurn) {
+                System.out.println("Ignoring MATCH message from self");
+                return;
+            }
+            
+            String[] parts = message.split(":");
+            System.out.println("MATCH message parts: " + java.util.Arrays.toString(parts));
+            boolean match = Boolean.parseBoolean(parts[1]);
+            System.out.println("Parsed match result: " + match);
+            
             if (match) {
-                // Opponent made a match - they continue playing
+                // Opponent made a match - they scored and continue playing
                 currentPlayer.incrementScore();
                 updateScores();
+                
+                // Get the card indices that were matched
+                if (parts.length >= 4) {
+                    int matchedIndex1 = Integer.parseInt(parts[2]);
+                    int matchedIndex2 = Integer.parseInt(parts[3]);
+                    System.out.println("Opponent matched cards at indices: " + matchedIndex1 + " and " + matchedIndex2);
+                    
+                    // Add to our matched indices set
+                    matchedCardIndices.add(matchedIndex1);
+                    matchedCardIndices.add(matchedIndex2);
+                    System.out.println("Added remote matched indices to tracking set: " + matchedIndex1 + ", " + matchedIndex2);
+                    System.out.println("Current matched indices: " + matchedCardIndices);
+                    
+                    // Keep the matched cards face-up by ensuring they stay flipped
+                    board.get(matchedIndex1).setIcon(cardSet.get(matchedIndex1).getImageIcon());
+                    board.get(matchedIndex2).setIcon(cardSet.get(matchedIndex2).getImageIcon());
+                }
+                
                 card1Selected = null;
                 card2Selected = null;
+                
                 System.out.println(currentPlayer.getName() + " got a match and continues!");
                 
-                // CRITICAL FIX: Enable game for opponent to continue
+                // Opponent continues their turn - enable game for them
                 gameReady = true;
-                System.out.println("gameReady set to true after opponent match!");
-                System.out.println("DEBUG: After opponent match - gameReady: " + gameReady + ", isMyTurn: " + isMyTurn);
                 // NO turn switch - opponent continues
+                
             } else {
-                // Opponent missed - we need to hide cards and switch turn
+                // Opponent missed - update error count, hide cards, and wait for turn update
                 errorCount++;
                 updateScores();
-                System.out.println(currentPlayer.getName() + " missed! Starting hide timer on receiving side.");
-                System.out.println("DEBUG: After opponent miss - gameReady: " + gameReady + ", isMyTurn: " + isMyTurn);
+                
+                System.out.println(currentPlayer.getName() + " missed! Hiding cards and waiting for turn update.");
+                
+                // Disable game temporarily while hiding cards
+                gameReady = false;
+                
                 // Start hide timer on the receiving side too
-                hideCardTimer.start();
+                hideCardTimer.stop();
+                Timer remoteHideTimer = new Timer(1500, e -> hideCards(false)); // Don't switch turns for remote miss
+                remoteHideTimer.setRepeats(false);
+                remoteHideTimer.start();
             }
+            
+        } else if (message.startsWith("HOSTNAME:")) {
+            String hostName = message.split(":")[1];
+            System.out.println("=== RECEIVED HOSTNAME MESSAGE ===");
+            System.out.println("Host's actual name: " + hostName);
+            // Update player1 (host) name with the actual host name
+            if (player1 instanceof RemotePlayer) {
+                player1 = new RemotePlayer(hostName, this);
+                System.out.println("Updated host player name to: " + hostName);
+            }
+            
         } else if (message.startsWith("TURN:")) {
             String turnName = message.split(":")[1];
             System.out.println("=== RECEIVED TURN MESSAGE ===");
             System.out.println("Received TURN message: " + turnName);
+            // Update current player based on received turn
             currentPlayer = turnName.equals(player1.getName()) ? player1 : player2;
+            boolean wasMyTurn = isMyTurn;
             isMyTurn = (currentPlayer instanceof LocalPlayer);
-            System.out.println("Updated turn - Current: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
-            System.out.println("gameReady: " + gameReady);
+            
+            // Force clear any selected cards when turn changes
+            card1Selected = null;
+            card2Selected = null;
+            
+            // Always ensure the new player can play their turn
+            gameReady = true;
+            System.out.println("Updated turn - Current: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn + 
+                               ", was my turn: " + wasMyTurn);
             System.out.println("Player1: " + player1.getName() + " (Local: " + (player1 instanceof LocalPlayer) + ")");
             System.out.println("Player2: " + player2.getName() + " (Local: " + (player2 instanceof LocalPlayer) + ")");
+            
         } else if (message.startsWith("BOARD:")) {
             shuffleSeed = Long.parseLong(message.split(":")[1]);
             shuffleCards(new Random(shuffleSeed));
+            
+            // Display cards briefly to players
             for (int i = 0; i < board.size(); i++) {
                 board.get(i).setIcon(cardSet.get(i).getImageIcon());
             }
+            
+            // Start timer to hide cards
             hideCardTimer.start();
             gameReady = true; // Enable game interaction for client
+            
         } else if (message.startsWith("RESTART:")) {
             shuffleSeed = Long.parseLong(message.split(":")[1]);
             player1.score = 0;
             player2.score = 0;
             shuffleCards(new Random(shuffleSeed));
+            
+            // Display cards briefly 
             for (int i = 0; i < board.size(); i++) {
                 board.get(i).setIcon(cardSet.get(i).getImageIcon());
             }
-            currentPlayer = player1;
+            
+            // Reset to host starting first
+            currentPlayer = player1; // Host always starts
             isMyTurn = (currentPlayer instanceof LocalPlayer);
             updateScores();
             hideCardTimer.start();
@@ -976,47 +1128,96 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
     }
 
     void hideCards(){
+        hideCards(true); // Default to switching turns (for local misses)
+    }
+    
+    void hideCards(boolean shouldSwitchTurns){
         System.out.println("hideCards() called - gameReady: " + gameReady + 
             ", card1Selected: " + (card1Selected != null ? "present" : "null") + 
-            ", card2Selected: " + (card2Selected != null ? "present" : "null"));
+            ", card2Selected: " + (card2Selected != null ? "present" : "null") +
+            ", shouldSwitchTurns: " + shouldSwitchTurns);
             
-        if(gameReady && card1Selected != null && card2Selected != null){
+        if(card1Selected != null && card2Selected != null){
             // Hide the mismatched cards by setting them back to card back image
             System.out.println("Hiding mismatched cards...");
             
-            // Double-check that these are still valid buttons and not already hidden
-            if (card1Selected.getIcon() != cardBackImageIcon) {
-                card1Selected.setIcon(cardBackImageIcon);
-                System.out.println("Card 1 flipped back to back side");
+            // Get the indices of the selected cards
+            int index1 = -1;
+            int index2 = -1;
+            
+            if (card1Selected != null) {
+                index1 = board.indexOf(card1Selected);
+            }
+            if (card2Selected != null) {
+                index2 = board.indexOf(card2Selected);
             }
             
-            if (card2Selected.getIcon() != cardBackImageIcon) {
+            System.out.println("Selected card indices: " + index1 + ", " + index2);
+            System.out.println("Matched card indices: " + matchedCardIndices);
+            
+            // Only hide cards that are not part of a matched set
+            if (card1Selected != null && !matchedCardIndices.contains(index1)) {
+                card1Selected.setIcon(cardBackImageIcon);
+                System.out.println("Card 1 flipped back to back side");
+            } else if (card1Selected != null) {
+                System.out.println("Card 1 is a matched card - keeping it face up");
+            }
+            
+            if (card2Selected != null && !matchedCardIndices.contains(index2)) {
                 card2Selected.setIcon(cardBackImageIcon);
                 System.out.println("Card 2 flipped back to back side");
+            } else if (card2Selected != null) {
+                System.out.println("Card 2 is a matched card - keeping it face up");
             }
             
             // Reset selections
             card1Selected = null;
             card2Selected = null;
             
-            System.out.println("Cards cleared! Game ready for next turn.");
+            System.out.println("Cards cleared! Checking if should switch turns after miss.");
             
-            // CRITICAL: Always switch turns after hiding mismatched cards in multiplayer
-            if (isMultiplayer) {
-                System.out.println("=== SWITCHING TURNS AFTER MISS ===");
+            // CRITICAL: Only switch turns if this is a local miss in multiplayer
+            if (isMultiplayer && shouldSwitchTurns) {
+                System.out.println("=== SWITCHING TURNS AFTER LOCAL MISS ===");
                 System.out.println("Before switch - Current: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
                 switchTurn();
                 System.out.println("After switch - Current: " + currentPlayer.getName() + ", isMyTurn: " + isMyTurn);
-                System.out.println("Turn switched successfully!");
+                
+                // Re-enable game after turn switch
+                gameReady = true;
+                System.out.println("Turn switched successfully! Game ready for " + currentPlayer.getName());
+                
+            } else if (isMultiplayer && !shouldSwitchTurns) {
+                // Remote miss - ensure we're still enabled for our turn
+                System.out.println("=== REMOTE MISS - CHECKING TURN STATUS ===");
+                // Make sure game is enabled for local player if it's their turn
+                if (isMyTurn) {
+                    gameReady = true;
+                    System.out.println("Remote miss processed - game ready for local player's turn");
+                } else {
+                    // Still waiting for our turn
+                    gameReady = false;
+                    System.out.println("Remote miss processed - waiting for turn update");
+                }
+                
             } else {
                 // Single player - just continue playing after hiding cards
+                gameReady = true;
                 System.out.println("Single player: Cards hidden, ready for next selection!");
             }
-        } else if (gameReady) {
+            
+        } else {
             // This might be initial game setup - hide all cards
             System.out.println("Hiding all cards (initial setup)");
             for(int i=0; i<board.size(); i++){
-                board.get(i).setIcon(cardBackImageIcon);
+                // For initial setup, hide all cards that are not part of matched pairs
+                if (!matchedCardIndices.contains(i)) {
+                    board.get(i).setIcon(cardBackImageIcon);
+                } else {
+                    // Keep matched cards face up
+                    System.out.println("Keeping matched card at index " + i + " face up during setup");
+                    board.get(i).setIcon(cardSet.get(i).getImageIcon());
+                }
             }
             gameReady = true; 
             restartButton.setEnabled(true);
@@ -1024,8 +1225,6 @@ public class CrashCrave extends JFrame implements ActionListener, Game {
             if (currentPlayer != null) {
                 System.out.println("Game is ready! " + currentPlayer.getName() + " starts first.");
             }
-        } else {
-            System.out.println("WARNING: hideCards() called but conditions not met!");
         }
     }
     
